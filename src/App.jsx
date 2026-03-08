@@ -7,6 +7,7 @@ const App = () => {
   const [history, setHistory] = useState([]);
   const [isSpinning, setIsSpinning] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
+  const [hasStarted, setHasStarted] = useState(false);
   const audioCtxRef = useRef(null);
 
   const makeDistortionCurve = (amount) => {
@@ -143,51 +144,52 @@ const App = () => {
       noiseGain.connect(ctx.destination);
       noiseSource.start(time);
     } else if (type === 'spin') {
-      const numClicks = 12;
-      const duration = 0.55;
+      const numClicks = 18; // More clicks for a realistic rapid spin
+      const duration = 1.0;
       for (let i = 0; i < numClicks; i++) {
         const progress = i / numClicks;
-        const spinDelay = progress * duration + (Math.pow(progress, 3) * 0.2);
+        const spinDelay = (Math.pow(progress, 2.5)) * duration;
         const spinTime = time + spinDelay;
         const isLast = i === numClicks - 1;
 
-        const noiseBufferSize = ctx.sampleRate * 0.02;
-        const noiseBuffer = ctx.createBuffer(1, noiseBufferSize, ctx.sampleRate);
-        const output = noiseBuffer.getChannelData(0);
-        for (let j = 0; j < noiseBufferSize; j++) { output[j] = Math.random() * 2 - 1; }
-        const noiseSrc = ctx.createBufferSource();
-        noiseSrc.buffer = noiseBuffer;
-        const noiseFilter = ctx.createBiquadFilter();
-        noiseFilter.type = 'bandpass';
-        noiseFilter.frequency.value = 800;
-        const noiseGain = ctx.createGain();
-        noiseGain.gain.setValueAtTime(0.4, spinTime);
-        noiseGain.gain.exponentialRampToValueAtTime(0.01, spinTime + 0.02);
-        noiseSrc.connect(noiseFilter);
-        noiseFilter.connect(noiseGain);
-        noiseGain.connect(ctx.destination);
-        noiseSrc.start(spinTime);
-
+        // High pitched metallic click
         const clickOsc = ctx.createOscillator();
-        clickOsc.type = 'triangle';
-        clickOsc.frequency.setValueAtTime(isLast ? 600 : 300, spinTime);
-        clickOsc.frequency.exponentialRampToValueAtTime(100, spinTime + 0.02);
+        clickOsc.type = 'square';
+        clickOsc.frequency.setValueAtTime(8000, spinTime);
+        clickOsc.frequency.exponentialRampToValueAtTime(2000, spinTime + 0.015);
+
         const clickGain = ctx.createGain();
-        const volume = isLast ? 1.0 : 0.5;
-        clickGain.gain.setValueAtTime(volume, spinTime);
-        clickGain.gain.exponentialRampToValueAtTime(0.01, spinTime + (isLast ? 0.05 : 0.02));
+        clickGain.gain.setValueAtTime(0.4, spinTime);
+        clickGain.gain.exponentialRampToValueAtTime(0.01, spinTime + 0.02);
+
+        // Lower thump for the mechanical body
+        const thumpOsc = ctx.createOscillator();
+        thumpOsc.type = 'triangle';
+        thumpOsc.frequency.setValueAtTime(400, spinTime);
+        thumpOsc.frequency.exponentialRampToValueAtTime(100, spinTime + 0.03);
+
+        const thumpGain = ctx.createGain();
+        thumpGain.gain.setValueAtTime(0.6, spinTime);
+        thumpGain.gain.exponentialRampToValueAtTime(0.01, spinTime + 0.03);
+
         clickOsc.connect(clickGain);
         clickGain.connect(ctx.destination);
+        thumpOsc.connect(thumpGain);
+        thumpGain.connect(ctx.destination);
+
         clickOsc.start(spinTime);
-        clickOsc.stop(spinTime + 0.06);
+        clickOsc.stop(spinTime + 0.03);
+        thumpOsc.start(spinTime);
+        thumpOsc.stop(spinTime + 0.04);
 
         if (isLast) {
+          // Final locking sound
           const lockOsc = ctx.createOscillator();
           lockOsc.type = 'square';
-          lockOsc.frequency.setValueAtTime(250, spinTime);
-          lockOsc.frequency.exponentialRampToValueAtTime(50, spinTime + 0.08);
+          lockOsc.frequency.setValueAtTime(500, spinTime);
+          lockOsc.frequency.exponentialRampToValueAtTime(100, spinTime + 0.05);
           const lockGain = ctx.createGain();
-          lockGain.gain.setValueAtTime(0.7, spinTime);
+          lockGain.gain.setValueAtTime(1.5, spinTime);
           lockGain.gain.exponentialRampToValueAtTime(0.01, spinTime + 0.08);
           lockOsc.connect(lockGain);
           lockGain.connect(ctx.destination);
@@ -211,8 +213,6 @@ const App = () => {
     }, 1200); // Wait for spin-decelerate animation (1.2s)
   };
 
-  useEffect(() => { spinCylinder(); }, []);
-
   const pullTrigger = () => {
     if (status === 'bang' || isSpinning || isPulling) return;
 
@@ -235,6 +235,23 @@ const App = () => {
       setIsPulling(false);
     }, 400); // 400ms suspense delay
   };
+
+  if (!hasStarted) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center bg-zinc-950 text-white cursor-pointer select-none"
+        onClick={() => {
+          setHasStarted(true);
+          spinCylinder();
+        }}
+      >
+        <div className="text-center animate-pulse">
+          <h1 className="text-6xl font-black mb-6 tracking-widest text-red-700 drop-shadow-lg filter blur-[0.5px]">RUSSIAN ROULETTE</h1>
+          <p className="text-2xl text-zinc-500 font-bold tracking-widest">화면을 클릭하여 게임 시작</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen flex flex-col items-center justify-center transition-colors duration-100 text-white font-sans p-4 relative overflow-hidden ${status === 'bang' ? 'bg-black animate-vignette-pulse' : 'bg-zinc-900'}`}>
