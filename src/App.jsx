@@ -6,6 +6,7 @@ const App = () => {
   const [status, setStatus] = useState('idle');
   const [history, setHistory] = useState([]);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
   const audioCtxRef = useRef(null);
 
   const makeDistortionCurve = (amount) => {
@@ -36,31 +37,47 @@ const App = () => {
     const time = ctx.currentTime;
 
     if (type === 'bang') {
+      // Deeper bass drop
       const clickOsc = ctx.createOscillator();
       clickOsc.type = 'square';
-      clickOsc.frequency.setValueAtTime(800, time);
-      clickOsc.frequency.exponentialRampToValueAtTime(10, time + 0.05);
+      clickOsc.frequency.setValueAtTime(400, time);
+      clickOsc.frequency.exponentialRampToValueAtTime(10, time + 0.1);
       const clickGain = ctx.createGain();
-      clickGain.gain.setValueAtTime(1.5, time);
-      clickGain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
+      clickGain.gain.setValueAtTime(2.5, time);
+      clickGain.gain.exponentialRampToValueAtTime(0.01, time + 0.1);
       clickOsc.connect(clickGain);
       clickGain.connect(ctx.destination);
       clickOsc.start(time);
-      clickOsc.stop(time + 0.05);
+      clickOsc.stop(time + 0.1);
 
       const thumpOsc = ctx.createOscillator();
       thumpOsc.type = 'sine';
-      thumpOsc.frequency.setValueAtTime(200, time);
-      thumpOsc.frequency.exponentialRampToValueAtTime(20, time + 0.4);
+      thumpOsc.frequency.setValueAtTime(150, time);
+      thumpOsc.frequency.exponentialRampToValueAtTime(10, time + 0.6);
       const thumpGain = ctx.createGain();
-      thumpGain.gain.setValueAtTime(4, time);
-      thumpGain.gain.exponentialRampToValueAtTime(0.01, time + 0.5);
+      thumpGain.gain.setValueAtTime(5, time);
+      thumpGain.gain.exponentialRampToValueAtTime(0.01, time + 0.7);
       thumpOsc.connect(thumpGain);
       thumpGain.connect(ctx.destination);
       thumpOsc.start(time);
-      thumpOsc.stop(time + 0.5);
+      thumpOsc.stop(time + 0.7);
 
-      const bufferSize = ctx.sampleRate * 1.0;
+      // Tinnitus Ringing effect
+      const ringOsc = ctx.createOscillator();
+      ringOsc.type = 'sine';
+      ringOsc.frequency.setValueAtTime(8000, time + 0.1);
+
+      const ringGain = ctx.createGain();
+      ringGain.gain.setValueAtTime(0, time);
+      ringGain.gain.linearRampToValueAtTime(0.15, time + 0.2); // Fade in ring
+      ringGain.gain.exponentialRampToValueAtTime(0.001, time + 3.0); // Fade out over 3s
+
+      ringOsc.connect(ringGain);
+      ringGain.connect(ctx.destination);
+      ringOsc.start(time + 0.1);
+      ringOsc.stop(time + 3.0);
+
+      const bufferSize = ctx.sampleRate * 1.5;
       const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
       const data = buffer.getChannelData(0);
       for (let i = 0; i < bufferSize; i++) { data[i] = Math.random() * 2 - 1; }
@@ -82,11 +99,12 @@ const App = () => {
       noiseGain.connect(ctx.destination);
       noiseSource.start(time);
 
-    } else if (type === 'click') {
+    } else if (type === 'trigger') {
+      // Dry mechanical snap for pulling the trigger before bang/click
       const clickOsc = ctx.createOscillator();
-      clickOsc.type = 'square';
-      clickOsc.frequency.setValueAtTime(4000, time);
-      clickOsc.frequency.exponentialRampToValueAtTime(1000, time + 0.02);
+      clickOsc.type = 'triangle';
+      clickOsc.frequency.setValueAtTime(2000, time);
+      clickOsc.frequency.exponentialRampToValueAtTime(100, time + 0.02);
       const clickGain = ctx.createGain();
       clickGain.gain.setValueAtTime(0.6, time);
       clickGain.gain.exponentialRampToValueAtTime(0.01, time + 0.02);
@@ -94,8 +112,21 @@ const App = () => {
       clickGain.connect(ctx.destination);
       clickOsc.start(time);
       clickOsc.stop(time + 0.03);
+    } else if (type === 'click') {
+      // Sharper empty chamber sound
+      const clickOsc = ctx.createOscillator();
+      clickOsc.type = 'square';
+      clickOsc.frequency.setValueAtTime(6000, time);
+      clickOsc.frequency.exponentialRampToValueAtTime(2000, time + 0.01);
+      const clickGain = ctx.createGain();
+      clickGain.gain.setValueAtTime(1.2, time);
+      clickGain.gain.exponentialRampToValueAtTime(0.01, time + 0.01);
+      clickOsc.connect(clickGain);
+      clickGain.connect(ctx.destination);
+      clickOsc.start(time);
+      clickOsc.stop(time + 0.02);
 
-      const noiseBufferSize = ctx.sampleRate * 0.03;
+      const noiseBufferSize = ctx.sampleRate * 0.04;
       const noiseBuffer = ctx.createBuffer(1, noiseBufferSize, ctx.sampleRate);
       const output = noiseBuffer.getChannelData(0);
       for (let i = 0; i < noiseBufferSize; i++) { output[i] = Math.random() * 2 - 1; }
@@ -103,15 +134,14 @@ const App = () => {
       noiseSource.buffer = noiseBuffer;
       const noiseFilter = ctx.createBiquadFilter();
       noiseFilter.type = 'highpass';
-      noiseFilter.frequency.value = 6000;
+      noiseFilter.frequency.value = 4000;
       const noiseGain = ctx.createGain();
-      noiseGain.gain.setValueAtTime(1.5, time);
-      noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.03);
+      noiseGain.gain.setValueAtTime(1.0, time);
+      noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.04);
       noiseSource.connect(noiseFilter);
       noiseFilter.connect(noiseGain);
       noiseGain.connect(ctx.destination);
       noiseSource.start(time);
-
     } else if (type === 'spin') {
       const numClicks = 12;
       const duration = 0.55;
@@ -178,32 +208,42 @@ const App = () => {
       setBulletPosition(Math.floor(Math.random() * 6));
       setCurrentChamber(0);
       setIsSpinning(false);
-    }, 700);
+    }, 1200); // Wait for spin-decelerate animation (1.2s)
   };
 
   useEffect(() => { spinCylinder(); }, []);
 
   const pullTrigger = () => {
-    if (status === 'bang' || isSpinning) return;
-    if (currentChamber === bulletPosition) {
-      playSound('bang');
-      setStatus('bang');
-      setHistory((prev) => [...prev, 'bang']);
-    } else {
-      playSound('click');
-      setStatus('safe');
-      setHistory((prev) => [...prev, 'safe']);
-      setCurrentChamber((prev) => prev + 1);
-    }
+    if (status === 'bang' || isSpinning || isPulling) return;
+
+    setIsPulling(true);
+    initAudio();
+    playSound('trigger'); // Tease the trigger pull
+
+    // Intense delay before revealing outcome
+    setTimeout(() => {
+      if (currentChamber === bulletPosition) {
+        playSound('bang');
+        setStatus('bang');
+        setHistory((prev) => [...prev, 'bang']);
+      } else {
+        playSound('click');
+        setStatus('safe');
+        setHistory((prev) => [...prev, 'safe']);
+        setCurrentChamber((prev) => prev + 1);
+      }
+      setIsPulling(false);
+    }, 400); // 400ms suspense delay
   };
 
   return (
-    <div className={`min-h-screen flex flex-col items-center justify-center transition-colors duration-200 text-white font-sans p-4 relative overflow-hidden ${status === 'bang' ? 'bg-red-950' : 'bg-zinc-900'}`}>
-      <style>{`@keyframes screenShake { 0% { transform: translate(1px, 1px) rotate(0deg); } 10% { transform: translate(-3px, -4px) rotate(-1deg); } 100% { transform: translate(0px, 0px) rotate(0deg); } } .animate-shake { animation: screenShake 0.4s both; }`}</style>
-      <div className={`flex flex-col items-center ${status === 'bang' ? 'animate-shake' : ''}`}>
-        <h1 className="text-4xl font-black mb-2 tracking-widest text-red-600 drop-shadow-md">RUSSIAN ROULETTE</h1>
-        <p className="text-zinc-400 text-sm mb-10">6발 중 1발. 생존을 위해 방아쇠를 당기세요.</p>
-        <div className={`relative w-52 h-52 rounded-full border-8 border-zinc-700 bg-zinc-800 flex items-center justify-center mb-12 shadow-2xl ${isSpinning ? 'animate-spin' : ''}`}>
+    <div className={`min-h-screen flex flex-col items-center justify-center transition-colors duration-100 text-white font-sans p-4 relative overflow-hidden ${status === 'bang' ? 'bg-black animate-vignette-pulse' : 'bg-zinc-900'}`}>
+      {status === 'bang' && <div className="absolute inset-0 bg-white pointer-events-none z-50 animate-flash mix-blend-overlay"></div>}
+      {status === 'bang' && <div className="absolute inset-0 bg-red-950 opacity-20 pointer-events-none z-40 bg-blend-multiply"></div>}
+      <div className={`flex flex-col items-center ${status === 'bang' ? 'animate-severe-shake' : ''}`}>
+        <h1 className="text-4xl font-black mb-2 tracking-widest text-red-600 drop-shadow-md z-10">RUSSIAN ROULETTE</h1>
+        <p className="text-zinc-400 text-sm mb-10 z-10">6발 중 1발. 생존을 위해 방아쇠를 당기세요.</p>
+        <div className={`relative w-52 h-52 rounded-full border-8 border-zinc-700 bg-zinc-800 flex items-center justify-center mb-12 shadow-2xl ${isSpinning ? 'animate-spin-decelerate' : ''}`}>
           <div className="absolute w-10 h-10 rounded-full bg-zinc-950 border-4 border-zinc-700"></div>
           {[0, 1, 2, 3, 4, 5].map((i) => {
             const angle = i * 60;
@@ -216,15 +256,15 @@ const App = () => {
             );
           })}
         </div>
-        <div className="text-2xl font-bold mb-8 h-8">{isSpinning ? '실린더 회전 중...' : status === 'bang' ? '💥 탕! 게임 오버' : status === 'safe' ? '찰칵. 생존!' : '준비 완료'}</div>
+        <div className="text-2xl font-bold mb-8 h-8 z-10">{isSpinning ? '실린더 회전 중...' : isPulling ? '...' : status === 'bang' ? '💥 탕! 게임 오버' : status === 'safe' ? '찰칵. 생존!' : '준비 완료'}</div>
         <div className="flex space-x-3 mb-10">
           {history.map((r, i) => <div key={i} className={`w-4 h-4 rounded-full ${r === 'bang' ? 'bg-red-600' : 'bg-emerald-500'}`} />)}
           {Array.from({ length: 6 - history.length }).map((_, i) => <div key={i} className="w-4 h-4 rounded-full border-2 border-zinc-700" />)}
         </div>
-        <div className="flex space-x-4">
-          <button onClick={pullTrigger} disabled={status === 'bang' || isSpinning} className="px-8 py-4 bg-red-700 hover:bg-red-600 disabled:bg-zinc-800 rounded-2xl font-black text-xl shadow-lg active:translate-y-1 transition-all">방아쇠 당기기</button>
-          <button onClick={spinCylinder} disabled={isSpinning} className="px-6 py-4 bg-zinc-900 border-2 border-zinc-700 rounded-2xl font-bold">초기화</button>
-        </div>
+      </div>
+      <div className="flex space-x-4 z-10">
+        <button onClick={pullTrigger} disabled={status === 'bang' || isSpinning || isPulling} className={`px-8 py-4 bg-red-700 hover:bg-red-600 rounded-2xl font-black text-xl shadow-lg transition-all ${isPulling || status === 'bang' || isSpinning ? 'opacity-50 grayscale cursor-not-allowed transform translate-y-2' : 'active:translate-y-1'}`}>방아쇠 당기기</button>
+        <button onClick={spinCylinder} disabled={isSpinning || isPulling} className="px-6 py-4 bg-zinc-900 border-2 border-zinc-700 rounded-2xl font-bold hover:bg-zinc-800">초기화</button>
       </div>
     </div>
   );
